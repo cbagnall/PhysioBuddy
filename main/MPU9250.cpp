@@ -472,3 +472,4 @@ void MPU9250::readBytes(uint8_t address, uint8_t subAddress, uint8_t count,
   while (Wire.available()) {
     dest[i++] = Wire.read(); }         // Put read results in the Rx buffer
 }
+

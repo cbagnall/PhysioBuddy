@@ -12,3 +12,4 @@ void MahonyQuaternionUpdate(float ax, float ay, float az, float gx, float gy,
 const float * getQ();
 
 #endif // _QUATERNIONFILTERS_H_
+

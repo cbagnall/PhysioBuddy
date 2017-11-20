@@ -232,3 +232,4 @@ void MahonyQuaternionUpdate(float ax, float ay, float az, float gx, float gy, fl
 }
 
 const float * getQ () { return q; }
+
