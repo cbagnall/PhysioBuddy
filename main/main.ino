@@ -197,11 +197,15 @@ void loop()
 //        Serial.print(" mg ");
 //        Serial.print("Z-acceleration: "); Serial.print(1000*myIMU.az);
 //        Serial.println(" mg ");
-        float acc_x = 100*myIMU.ax;
+        float acc_x = 905/8*myIMU.ax;
         float acc_y = 100*myIMU.ay;
         float acc_z = 100*myIMU.az;
-
-        Serial.print(acc_x/ini_x);
+        float new_x = acc_x/ini_x;
+        float new_x2 = 0.0074*new_x*new_x + 0.7876*new_x + 3.0508;
+        
+        Serial.print(new_x + new_x2);
+        Serial.print(",");
+        Serial.print(new_x);
         Serial.print(",");
         Serial.print(acc_y/ini_y);
         Serial.print(",");
