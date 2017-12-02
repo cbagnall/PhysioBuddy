@@ -31,84 +31,96 @@
 #define SerialDebug true  // Set to true to get Serial output for debugging
 #define SleepTime 100
 
-// Pin definitions
-int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
-int myLed  = 13;  // Set up pin 13 led for toggling
-
-MPU9250 myIMU;
+MPU9250 Patella;
+MPU9250 Quad;
 
 //Store sensitivity values
-float ini_x;
-float ini_y;
-float ini_z;
+float ini_x_pat;
+float ini_y_pat;
+float ini_z_pat;
+float ini_x_quad;
+float ini_y_quad;
+float ini_z_quad;
+
+void TestSensor(MPU9250* sensor)
+{
+    sensor->MPU9250SelfTest(sensor->SelfTest);
+    Serial.print("x-axis self test: acceleration trim within : ");
+    Serial.print(sensor->SelfTest[0],1); Serial.println("% of factory value");
+    Serial.print("y-axis self test: acceleration trim within : ");
+    Serial.print(sensor->SelfTest[1],1); Serial.println("% of factory value");
+    Serial.print("z-axis self test: acceleration trim within : ");
+    Serial.print(sensor->SelfTest[2],1); Serial.println("% of factory value");
+    Serial.print("x-axis self test: gyration trim within : ");
+    Serial.print(sensor->SelfTest[3],1); Serial.println("% of factory value");
+    Serial.print("y-axis self test: gyration trim within : ");
+    Serial.print(sensor->SelfTest[4],1); Serial.println("% of factory value");
+    Serial.print("z-axis self test: gyration trim within : ");
+    Serial.print(sensor->SelfTest[5],1); Serial.println("% of factory value");  
+}
+
+void SetMagCalibrationValues(MPU9250* sensor, float* x, float* y, float* z)
+{
+      Serial.print("X-Axis sensitivity adjustment value ");
+      Serial.println(sensor->magCalibration[0], 2);
+      *x = sensor->magCalibration[0];
+      Serial.print("Y-Axis sensitivity adjustment value ");
+      Serial.println(sensor->magCalibration[1], 2);
+      *y = sensor->magCalibration[1];
+      Serial.print("Z-Axis sensitivity adjustment value ");
+      Serial.println(sensor->magCalibration[2], 2);
+      *z = sensor->magCalibration[2];	
+}
 
 void setup()
 {
   Wire.begin();
   // TWBR = 12;  // 400 kbit/sec I2C speed
-  Serial.begin(19200);
-  SPI.setClockDivider(64);
-
-  // Set up the interrupt pin, its set as active high, push-pull
-  // pinMode(intPin, INPUT);
-  // digitalWrite(intPin, LOW);
-  // pinMode(myLed, OUTPUT);
-  // digitalWrite(myLed, HIGH);
+  Serial.begin(9600);
+  SPI.setClockDivider(SPI_CLOCK_DIV64);
 
   // Read the WHO_AM_I register, this is a good test of communication
-  byte c = myIMU.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  byte c = Patella.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
   Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);
-  Serial.print(" I should be "); Serial.println(0x71, HEX);
+  byte c_2 = Quad.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
 
-  if (c == 0x71) // WHO_AM_I should always be 0x68
+
+  if (c == 0x71 && c_2 == 0x71) // WHO_AM_I should always be 0x71
   {
     Serial.println("MPU9250 is online...");
 
     // Start by performing self test and reporting values
-    myIMU.MPU9250SelfTest(myIMU.SelfTest);
-    Serial.print("x-axis self test: acceleration trim within : ");
-    Serial.print(myIMU.SelfTest[0],1); Serial.println("% of factory value");
-    Serial.print("y-axis self test: acceleration trim within : ");
-    Serial.print(myIMU.SelfTest[1],1); Serial.println("% of factory value");
-    Serial.print("z-axis self test: acceleration trim within : ");
-    Serial.print(myIMU.SelfTest[2],1); Serial.println("% of factory value");
-    Serial.print("x-axis self test: gyration trim within : ");
-    Serial.print(myIMU.SelfTest[3],1); Serial.println("% of factory value");
-    Serial.print("y-axis self test: gyration trim within : ");
-    Serial.print(myIMU.SelfTest[4],1); Serial.println("% of factory value");
-    Serial.print("z-axis self test: gyration trim within : ");
-    Serial.print(myIMU.SelfTest[5],1); Serial.println("% of factory value");
+    TestSensor(&Patella);
+    TestSensor(&Quad);
 
     // Calibrate gyro and accelerometers, load biases in bias registers
-    myIMU.calibrateMPU9250(myIMU.gyroBias, myIMU.accelBias);
+    Patella.calibrateMPU9250(Patella.gyroBias, Patella.accelBias);
+    Quad.calibrateMPU9250(Quad.gyroBias, Quad.accelBias);
+    
 
-    myIMU.initMPU9250();
-    // Initialize device for active mode read of acclerometer, gyroscope, and
-    // temperature
+    Patella.initMPU9250();
+    Quad.initMPU9250();
+    // Initialize device for active mode read of acclerometer, gyroscope, and temperature
     Serial.println("MPU9250 initialized for active data mode....");
 
     // Read the WHO_AM_I register of the magnetometer, this is a good test of
     // communication
-    byte d = myIMU.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
+    byte d = Patella.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
     Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d, HEX);
-    Serial.print(" I should be "); Serial.println(0x48, HEX);
+    byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
+    Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
+    if(d_2 != 0x48 || d != 0x48){ Serial.println("magnetometer failed to calibrate"); return;}
 
     // Get magnetometer calibration from AK8963 ROM
-    myIMU.initAK8963(myIMU.magCalibration);
+    Patella.initAK8963(Patella.magCalibration);
+    Quad.initAK8963(Quad.magCalibration);
     // Initialize device for active mode read of magnetometer
     Serial.println("AK8963 initialized for active data mode....");
     if (SerialDebug)
     {
-      //  Serial.println("Calibration values: ");
-      Serial.print("X-Axis sensitivity adjustment value ");
-      Serial.println(myIMU.magCalibration[0], 2);
-      ini_x = myIMU.magCalibration[0];
-      Serial.print("Y-Axis sensitivity adjustment value ");
-      Serial.println(myIMU.magCalibration[1], 2);
-      ini_y = myIMU.magCalibration[1];
-      Serial.print("Z-Axis sensitivity adjustment value ");
-      Serial.println(myIMU.magCalibration[2], 2);
-      ini_z = myIMU.magCalibration[2];
+		SetMagCalibrationValues(&Patella, &ini_x_pat, &ini_y_pat, &ini_z_pat);
+		SetMagCalibrationValues(&Quad, &ini_x_quad, &ini_y_quad, &ini_z_quad);
     }
 
   } // if (c == 0x71)
@@ -116,59 +128,54 @@ void setup()
   {
     Serial.print("Could not connect to MPU9250: 0x");
     Serial.println(c, HEX);
-    delay(5000); // Loop forever if communication doesn't happen
+    delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   }
 }
 
 void loop()
 {
-  // If intPin goes high, all data registers have new data
-  // On interrupt, check if data ready interrupt
-  if (0x01)
-  {  
-    myIMU.readAccelData(myIMU.accelCount);  // Read the x/y/z adc values
-    myIMU.getAres();
+    Patella.readAccelData(Patella.accelCount);  // Read the x/y/z adc values
+    Patella.getAres();
 
     // Now we'll calculate the accleration value into actual g's
     // This depends on scale being set
-    myIMU.ax = (float)myIMU.accelCount[0]*myIMU.aRes; // - accelBias[0];
-    myIMU.ay = (float)myIMU.accelCount[1]*myIMU.aRes; // - accelBias[1];
-    myIMU.az = (float)myIMU.accelCount[2]*myIMU.aRes; // - accelBias[2];
+    Patella.ax = (float)Patella.accelCount[0]*Patella.aRes; // - accelBias[0];
+    Patella.ay = (float)Patella.accelCount[1]*Patella.aRes; // - accelBias[1];
+    Patella.az = (float)Patella.accelCount[2]*Patella.aRes; // - accelBias[2];
 
-    myIMU.readGyroData(myIMU.gyroCount);  // Read the x/y/z adc values
-    myIMU.getGres();
+    Patella.readGyroData(Patella.gyroCount);  // Read the x/y/z adc values
+    Patella.getGres();
 
     // Calculate the gyro value into actual degrees per second
     // This depends on scale being set
-    myIMU.gx = (float)myIMU.gyroCount[0]*myIMU.gRes;
-    myIMU.gy = (float)myIMU.gyroCount[1]*myIMU.gRes;
-    myIMU.gz = (float)myIMU.gyroCount[2]*myIMU.gRes;
+    Patella.gx = (float)Patella.gyroCount[0]*Patella.gRes;
+    Patella.gy = (float)Patella.gyroCount[1]*Patella.gRes;
+    Patella.gz = (float)Patella.gyroCount[2]*Patella.gRes;
 
-    myIMU.readMagData(myIMU.magCount);  // Read the x/y/z adc values
-    myIMU.getMres();
+    Patella.readMagData(Patella.magCount);  // Read the x/y/z adc values
+    Patella.getMres();
     // User environmental x-axis correction in milliGauss, should be
     // automatically calculated
-    myIMU.magbias[0] = +470.;
+    Patella.magbias[0] = +470.;
     // User environmental x-axis correction in milliGauss TODO axis??
-    myIMU.magbias[1] = +120.;
+    Patella.magbias[1] = +120.;
     // User environmental x-axis correction in milliGauss
-    myIMU.magbias[2] = +125.;
+    Patella.magbias[2] = +125.;
 
     // Calculate the magnetometer values in milliGauss
     // Include factory calibration per data sheet and user environmental
     // corrections
     // Get actual magnetometer value, this depends on scale being set
-    myIMU.mx = (float)myIMU.magCount[0]*myIMU.mRes*myIMU.magCalibration[0] -
-               myIMU.magbias[0];
-    myIMU.my = (float)myIMU.magCount[1]*myIMU.mRes*myIMU.magCalibration[1] -
-               myIMU.magbias[1];
-    myIMU.mz = (float)myIMU.magCount[2]*myIMU.mRes*myIMU.magCalibration[2] -
-               myIMU.magbias[2];
-  } // if (readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01)
+    Patella.mx = (float)Patella.magCount[0]*Patella.mRes*Patella.magCalibration[0] -
+               Patella.magbias[0];
+    Patella.my = (float)Patella.magCount[1]*Patella.mRes*Patella.magCalibration[1] -
+               Patella.magbias[1];
+    Patella.mz = (float)Patella.magCount[2]*Patella.mRes*Patella.magCalibration[2] -
+               Patella.magbias[2];
 
   // Must be called before updating quaternions!
-  myIMU.updateTime();
+  Patella.updateTime();
 
   // Sensors x (y)-axis of the accelerometer is aligned with the y (x)-axis of
   // the magnetometer; the magnetometer z-axis (+ down) is opposite to z-axis
@@ -179,88 +186,89 @@ void loop()
   // modified to allow any convenient orientation convention. This is ok by
   // aircraft orientation standards! Pass gyro rate as rad/s
 //  MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f,  my,  mx, mz);
-  MahonyQuaternionUpdate(myIMU.ax, myIMU.ay, myIMU.az, myIMU.gx*DEG_TO_RAD,
-                         myIMU.gy*DEG_TO_RAD, myIMU.gz*DEG_TO_RAD, myIMU.my,
-                         myIMU.mx, myIMU.mz, myIMU.deltat);
+  MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,
+                         Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my,
+                         Patella.mx, Patella.mz, Patella.deltat);
 
-  if (!AHRS)
+
+Patella.delt_t = millis() - Patella.count;
+if (Patella.delt_t > SleepTime)
+{
+  if(SerialDebug)
   {
-    myIMU.delt_t = millis() - myIMU.count;
-    if (myIMU.delt_t > SleepTime)
-    {
-      if(SerialDebug)
-      {
-        // Print acceleration values in milligs!
-//        Serial.print("X-acceleration: "); Serial.print(1000*myIMU.ax);
+    // Print acceleration values in milligs!
+//        Serial.print("X-acceleration: "); Serial.print(1000*Patella.ax);
 //        Serial.println(" mg ");
-//        Serial.print("Y-acceleration: "); Serial.print(1000*myIMU.ay);
+//        Serial.print("Y-acceleration: "); Serial.print(1000*Patella.ay);
 //        Serial.print(" mg ");
-//        Serial.print("Z-acceleration: "); Serial.print(1000*myIMU.az);
+//        Serial.print("Z-acceleration: "); Serial.print(1000*Patella.az);
 //        Serial.println(" mg ");
-        float acc_x = 905/8*myIMU.ax;
-        float acc_y = 100*myIMU.ay;
-        float acc_z = 100*myIMU.az;
-        float new_x = acc_x/ini_x;
-        float new_x2 = 0.0074*new_x*new_x + 0.7876*new_x + 3.0508;
-        
-        Serial.print(new_x + new_x2);
-        Serial.print(",");
-        Serial.print(new_x);
-        Serial.print(",");
-        Serial.print(acc_y/ini_y);
-        Serial.print(",");
-        Serial.println(acc_z/ini_z);
-        
+    float acc_x = 905/8*Patella.ax;
+    float acc_y = 100*Patella.ay;
+    float acc_z = 100*Patella.az;
+    float new_x = acc_x/ini_x_pat;
+    float new_x2 = 0.0074*new_x*new_x + 0.7876*new_x + 3.0508;
+    
+    Serial.print(new_x + new_x2);
+    Serial.print(",");
+    Serial.print(new_x);
+    Serial.print(",");
+    Serial.print(acc_y/ini_y_pat);
+    Serial.print(",");
+    Serial.println(acc_z/ini_z_pat);
+    
 //        // Print gyro values in degree/sec
-        //Serial.print("X-gyro rate: "); Serial.print(myIMU.gx, 3);
-        //Serial.println(" degrees/sec ");
-//        Serial.print("Y-gyro rate: "); Serial.print(myIMU.gy, 3);
+    //Serial.print("X-gyro rate: "); Serial.print(Patella.gx, 3);
+    //Serial.println(" degrees/sec ");
+//        Serial.print("Y-gyro rate: "); Serial.print(Patella.gy, 3);
 //        Serial.print(" degrees/sec ");
-//        Serial.print("Z-gyro rate: "); Serial.print(myIMU.gz, 3);
+//        Serial.print("Z-gyro rate: "); Serial.print(Patella.gz, 3);
 //        Serial.println(" degrees/sec");
 //
 //        // Print mag values in degree/sec
-        //Serial.print("X-mag field: "); Serial.print(myIMU.mx);
-        //Serial.print(" mG ");
-//        Serial.print("Y-mag field: "); Serial.print(myIMU.my);
+    //Serial.print("X-mag field: "); Serial.print(Patella.mx);
+    //Serial.print(" mG ");
+//        Serial.print("Y-mag field: "); Serial.print(Patella.my);
 //        Serial.print(" mG ");
-//        Serial.print("Z-mag field: "); Serial.print(myIMU.mz);
+//        Serial.print("Z-mag field: "); Serial.print(Patella.mz);
 //        Serial.println(" mG");
-
-        myIMU.tempCount = myIMU.readTempData();  // Read the adc values
-        // Temperature in degrees Centigrade
-        myIMU.temperature = ((float) myIMU.tempCount) / 333.87 + 21.0;
-        // Print temperature in degrees Centigrade
-//        Serial.print("Temperature is ");  Serial.print(myIMU.temperature, 1);
+#if 0
+    Patella.tempCount = Patella.readTempData();  // Read the adc values
+    // Temperature in degrees Centigrade
+    Patella.temperature = ((float) Patella.tempCount) / 333.87 + 21.0;
+    // Print temperature in degrees Centigrade
+#endif
+//        Serial.print("Temperature is ");  Serial.print(Patella.temperature, 1);
 //        Serial.println(" degrees C");
-      }
+  }
 
-      myIMU.count = millis();
-    } // if (myIMU.delt_t > 500)
-  } // if (!AHRS)
+  Patella.count = millis();
+} // if (Patella.delt_t > 500)
+
+  #if 0
   else
   {
     // Serial print and/or display at 0.5 s rate independent of data rates
-    myIMU.delt_t = millis() - myIMU.count;
+    Patella.delt_t = millis() - Patella.count;
 
     // update LCD once per half-second independent of read rate
-    if (myIMU.delt_t > SleepTime)
+    if (Patella.delt_t > SleepTime)
     {
       if(SerialDebug)
       {
-        Serial.print("ax = "); Serial.print((int)1000*myIMU.ax);
-        Serial.print(" ay = "); Serial.print((int)1000*myIMU.ay);
-        Serial.print(" az = "); Serial.print((int)1000*myIMU.az);
+        Serial.print("ax = "); Serial.print((int)1000*Patella.ax);
+        Serial.print(" ay = "); Serial.print((int)1000*Patella.ay);
+        Serial.print(" az = "); Serial.print((int)1000*Patella.az);
         Serial.println(" mg");
 
-        Serial.print("gx = "); Serial.print( myIMU.gx, 2);
-        Serial.print(" gy = "); Serial.print( myIMU.gy, 2);
-        Serial.print(" gz = "); Serial.print( myIMU.gz, 2);
+        Serial.print("gx = "); Serial.print( Patella.gx, 2);
+        Serial.print(" gy = "); Serial.print( Patella.gy, 2);
+        Serial.print(" gz = "); Serial.print( Patella.gz, 2);
         Serial.println(" deg/s");
 
-        Serial.print("mx = "); Serial.print( (int)myIMU.mx );
-        Serial.print(" my = "); Serial.print( (int)myIMU.my );
-        Serial.print(" mz = "); Serial.print( (int)myIMU.mz );
+        Serial.print("mx = "); Serial.print( (int)Patella.mx );
+        Serial.print(" my = "); Serial.print( (int)Patella.my );
+        Serial.print(" mz = "); Serial.print( (int)Patella.mz );
         Serial.println(" mG");
 
         Serial.print("q0 = "); Serial.print(*getQ());
@@ -285,40 +293,40 @@ void loop()
 // For more see
 // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 // which has additional links.
-      myIMU.yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ() *
+      Patella.yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ() *
                     *(getQ()+3)), *getQ() * *getQ() + *(getQ()+1) * *(getQ()+1)
                     - *(getQ()+2) * *(getQ()+2) - *(getQ()+3) * *(getQ()+3));
-      myIMU.pitch = -asin(2.0f * (*(getQ()+1) * *(getQ()+3) - *getQ() *
+      Patella.pitch = -asin(2.0f * (*(getQ()+1) * *(getQ()+3) - *getQ() *
                     *(getQ()+2)));
-      myIMU.roll  = atan2(2.0f * (*getQ() * *(getQ()+1) + *(getQ()+2) *
+      Patella.roll  = atan2(2.0f * (*getQ() * *(getQ()+1) + *(getQ()+2) *
                     *(getQ()+3)), *getQ() * *getQ() - *(getQ()+1) * *(getQ()+1)
                     - *(getQ()+2) * *(getQ()+2) + *(getQ()+3) * *(getQ()+3));
-      myIMU.pitch *= RAD_TO_DEG;
-      myIMU.yaw   *= RAD_TO_DEG;
+      Patella.pitch *= RAD_TO_DEG;
+      Patella.yaw   *= RAD_TO_DEG;
       // Declination of SparkFun Electronics (40°05'26.6"N 105°11'05.9"W) is
       //    8° 30' E  ± 0° 21' (or 8.5°) on 2016-07-19
       // - http://www.ngdc.noaa.gov/geomag-web/#declination
-      myIMU.yaw   -= 8.5;
-      myIMU.roll  *= RAD_TO_DEG;
+      Patella.yaw   -= 8.5;
+      Patella.roll  *= RAD_TO_DEG;
 
       if(SerialDebug)
       {
         Serial.print("Yaw, Pitch, Roll: ");
-        Serial.print(myIMU.yaw, 2);
+        Serial.print(Patella.yaw, 2);
         Serial.print(", ");
-        Serial.print(myIMU.pitch, 2);
+        Serial.print(Patella.pitch, 2);
         Serial.print(", ");
-        Serial.println(myIMU.roll, 2);
+        Serial.println(Patella.roll, 2);
 
         Serial.print("rate = ");
-        Serial.print((float)myIMU.sumCount/myIMU.sum, 2);
+        Serial.print((float)Patella.sumCount/Patella.sum, 2);
         Serial.println(" Hz");
       }
-
-      myIMU.count = millis();
-      myIMU.sumCount = 0;
-      myIMU.sum = 0;
-    } // if (myIMU.delt_t > 500)
+      Patella.count = millis();
+      Patella.sumCount = 0;
+      Patella.sum = 0;
+    } // if (Patella.delt_t > 500)
   } // if (AHRS)
+#endif
   delay(SleepTime);
 }
