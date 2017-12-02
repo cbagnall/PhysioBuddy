@@ -61,37 +61,37 @@ void TestSensor(MPU9250* sensor)
 
 void SetMagCalibrationValues(MPU9250* sensor, float* x, float* y, float* z)
 {
-      Serial.print("X-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[0], 2);
-      *x = sensor->magCalibration[0];
-      Serial.print("Y-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[1], 2);
-      *y = sensor->magCalibration[1];
-      Serial.print("Z-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[2], 2);
-      *z = sensor->magCalibration[2];	
+  Serial.print("X-Axis sensitivity adjustment value ");
+  Serial.println(sensor->magCalibration[0], 2);
+  *x = sensor->magCalibration[0];
+  Serial.print("Y-Axis sensitivity adjustment value ");
+  Serial.println(sensor->magCalibration[1], 2);
+  *y = sensor->magCalibration[1];
+  Serial.print("Z-Axis sensitivity adjustment value ");
+  Serial.println(sensor->magCalibration[2], 2);
+  *z = sensor->magCalibration[2];	
 }
 
 void ReadAccel(MPU9250* sensor, float x_ini, float y_ini, float z_ini)
 {
-	float X_A = 0.0074, X_B = 0.7876, X_C = 3.0508;
+  float X_A = 0.0074, X_B = 0.7876, X_C = 3.0508;
 	float Y_A = 1, Y_B = 1, Y_C = 1; //TODO
 	float Z_A = 1, Z_B = 1, Z_C = 1;//TODO
 
 	sensor->readAccelData(sensor->accelCount);  // Read the x/y/z adc values
-    sensor->getAres();
-    // Now we'll calculate the accleration value into actual g's
-    // This depends on scale being set
-    sensor->ax = (float)(905/8)*(sensor->accelCount[0]*sensor->aRes) / x_ini;
-    sensor->ay = (float)(100)*sensor->accelCount[1]*sensor->aRes / y_ini;
-    sensor->az = (float)(100)*sensor->accelCount[2]*sensor->aRes / z_ini;
+	sensor->getAres();
+  // Now we'll calculate the accleration value into actual g's
+  // This depends on scale being set
+  sensor->ax = (float)(905/8)*(sensor->accelCount[0]*sensor->aRes) / x_ini;
+  sensor->ay = (float)(100)*sensor->accelCount[1]*sensor->aRes / y_ini;
+  sensor->az = (float)(100)*sensor->accelCount[2]*sensor->aRes / z_ini;
 
-    float x_offset = X_A*(sensor->ax)*(sensor->ax) + X_B*(sensor->ax) + X_C;
-    float y_offset = 0; //TODO
-    float z_offset = 0; //TODO
-    sensor->ax += x_offset;
-    sensor->ay += y_offset;
-    sensor->az += z_offset;
+  float x_offset = X_A*(sensor->ax)*(sensor->ax) + X_B*(sensor->ax) + X_C;
+  float y_offset = 0; //TODO
+  float z_offset = 0; //TODO
+  sensor->ax += x_offset;
+  sensor->ay += y_offset;
+  sensor->az += z_offset;
 }
 
 void ReadMag(MPU9250* sensor)
@@ -127,11 +127,10 @@ void ReadGyro(MPU9250* sensor)
 void PrintAcc(MPU9250* sensor)
 {
 	Serial.print(sensor->ax);
-    Serial.print(",");
-    Serial.print(sensor->ay);
-    Serial.print(",");
-    Serial.println(sensor->az);
-
+  Serial.print(",");
+  Serial.print(sensor->ay);
+  Serial.print(",");
+  Serial.println(sensor->az);
 }
 
 void setup()
@@ -195,28 +194,42 @@ void setup()
   }
 }
 
+int loop_time = SleepTime; //global
+
 void loop()
-{
-    
+{ 
+  while(loop_time < SleepTime) {
+    delay(SleepTime - loop_time);
+    loop_time = SleepTime;
+  } //delay
+  
+  loop_time = millis();
 	ReadAccel(&Patella, ini_x_pat, ini_y_pat, ini_z_pat);
 	ReadGyro(&Patella);
-	ReadMag(&Patella);    
-
+	ReadMag(&Patella);
   // Must be called before updating quaternions!
   Patella.updateTime();
   MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
   	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
-
-
-Patella.delt_t = millis() - Patella.count; //is this necessary?
-//if (Patella.delt_t > SleepTime)
-//{
+    
   if(SerialDebug)
   {
     PrintAcc(&Patella);
   }
 
-  Patella.count = millis(); //is this necessary?
-//}
-  delay(SleepTime);
+//--------------------------------------------------------------Second sensor
+ 
+  ReadAccel(&Quad, ini_x_pat, ini_y_pat, ini_z_pat);
+  ReadGyro(&Quad);
+  ReadMag(&Quad);    
+  // Must be called before updating quaternions!
+  Quad.updateTime();
+  MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
+  	Quad.gy*DEG_TO_RAD, Quad.gz*DEG_TO_RAD, Quad.my, Quad.mx, Quad.mz, Quad.deltat);
+
+  if(SerialDebug)
+  {
+    PrintAcc(&Quad);
+  }
+  loop_time = millis()-loop_time;
 }
