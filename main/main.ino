@@ -72,6 +72,68 @@ void SetMagCalibrationValues(MPU9250* sensor, float* x, float* y, float* z)
       *z = sensor->magCalibration[2];	
 }
 
+void ReadAccel(MPU9250* sensor, float x_ini, float y_ini, float z_ini)
+{
+	float X_A = 0.0074, X_B = 0.7876, X_C = 3.0508;
+	float Y_A = 1, Y_B = 1, Y_C = 1; //TODO
+	float Z_A = 1, Z_B = 1, Z_C = 1;//TODO
+
+	sensor->readAccelData(sensor->accelCount);  // Read the x/y/z adc values
+    sensor->getAres();
+    // Now we'll calculate the accleration value into actual g's
+    // This depends on scale being set
+    sensor->ax = (float)(905/8)*(sensor->accelCount[0]*sensor->aRes) / x_ini;
+    sensor->ay = (float)(100)*sensor->accelCount[1]*sensor->aRes / y_ini;
+    sensor->az = (float)(100)*sensor->accelCount[2]*sensor->aRes / z_ini;
+
+    float x_offset = X_A*(sensor->ax)*(sensor->ax) + X_B*(sensor->ax) + X_C;
+    float y_offset = 0; //TODO
+    float z_offset = 0; //TODO
+    sensor->ax += x_offset;
+    sensor->ay += y_offset;
+    sensor->az += z_offset;
+}
+
+void ReadMag(MPU9250* sensor)
+{
+	sensor->readMagData(sensor->magCount);  // Read the x/y/z adc values
+    sensor->getMres();
+    // User environmental x-axis correction in milliGauss, should be
+    // automatically calculated
+    sensor->magbias[0] = +470.;
+    // User environmental x-axis correction in milliGauss TODO axis??
+    sensor->magbias[1] = +120.;
+    // User environmental x-axis correction in milliGauss
+    sensor->magbias[2] = +125.;
+    // Calculate the magnetometer values in milliGauss
+    // Include factory calibration per data sheet and user environmental corrections
+    // Get actual magnetometer value, this depends on scale being set
+    sensor->mx = (float)sensor->magCount[0]*sensor->mRes*sensor->magCalibration[0] - sensor->magbias[0];
+    sensor->my = (float)sensor->magCount[1]*sensor->mRes*sensor->magCalibration[1] - sensor->magbias[1];
+    sensor->mz = (float)sensor->magCount[2]*sensor->mRes*sensor->magCalibration[2] - sensor->magbias[2];
+}
+
+void ReadGyro(MPU9250* sensor)
+{
+	sensor->readGyroData(sensor->gyroCount);  // Read the x/y/z adc values
+    sensor->getGres();
+    //Calculate the gyro value into actual degrees per second
+    // This depends on scale being set
+    sensor->gx = (float)sensor->gyroCount[0]*sensor->gRes;
+    sensor->gy = (float)sensor->gyroCount[1]*sensor->gRes;
+    sensor->gz = (float)sensor->gyroCount[2]*sensor->gRes;
+}
+
+void PrintAcc(MPU9250* sensor)
+{
+	Serial.print(sensor->ax);
+    Serial.print(",");
+    Serial.print(sensor->ay);
+    Serial.print(",");
+    Serial.println(sensor->az);
+
+}
+
 void setup()
 {
   Wire.begin();
@@ -135,198 +197,26 @@ void setup()
 
 void loop()
 {
-    Patella.readAccelData(Patella.accelCount);  // Read the x/y/z adc values
-    Patella.getAres();
-
-    // Now we'll calculate the accleration value into actual g's
-    // This depends on scale being set
-    Patella.ax = (float)Patella.accelCount[0]*Patella.aRes; // - accelBias[0];
-    Patella.ay = (float)Patella.accelCount[1]*Patella.aRes; // - accelBias[1];
-    Patella.az = (float)Patella.accelCount[2]*Patella.aRes; // - accelBias[2];
-
-    Patella.readGyroData(Patella.gyroCount);  // Read the x/y/z adc values
-    Patella.getGres();
-
-    // Calculate the gyro value into actual degrees per second
-    // This depends on scale being set
-    Patella.gx = (float)Patella.gyroCount[0]*Patella.gRes;
-    Patella.gy = (float)Patella.gyroCount[1]*Patella.gRes;
-    Patella.gz = (float)Patella.gyroCount[2]*Patella.gRes;
-
-    Patella.readMagData(Patella.magCount);  // Read the x/y/z adc values
-    Patella.getMres();
-    // User environmental x-axis correction in milliGauss, should be
-    // automatically calculated
-    Patella.magbias[0] = +470.;
-    // User environmental x-axis correction in milliGauss TODO axis??
-    Patella.magbias[1] = +120.;
-    // User environmental x-axis correction in milliGauss
-    Patella.magbias[2] = +125.;
-
-    // Calculate the magnetometer values in milliGauss
-    // Include factory calibration per data sheet and user environmental
-    // corrections
-    // Get actual magnetometer value, this depends on scale being set
-    Patella.mx = (float)Patella.magCount[0]*Patella.mRes*Patella.magCalibration[0] -
-               Patella.magbias[0];
-    Patella.my = (float)Patella.magCount[1]*Patella.mRes*Patella.magCalibration[1] -
-               Patella.magbias[1];
-    Patella.mz = (float)Patella.magCount[2]*Patella.mRes*Patella.magCalibration[2] -
-               Patella.magbias[2];
+    
+	ReadAccel(&Patella, ini_x_pat, ini_y_pat, ini_z_pat);
+	ReadGyro(&Patella);
+	ReadMag(&Patella);    
 
   // Must be called before updating quaternions!
   Patella.updateTime();
-
-  // Sensors x (y)-axis of the accelerometer is aligned with the y (x)-axis of
-  // the magnetometer; the magnetometer z-axis (+ down) is opposite to z-axis
-  // (+ up) of accelerometer and gyro! We have to make some allowance for this
-  // orientationmismatch in feeding the output to the quaternion filter. For the
-  // MPU-9250, we have chosen a magnetic rotation that keeps the sensor forward
-  // along the x-axis just like in the LSM9DS0 sensor. This rotation can be
-  // modified to allow any convenient orientation convention. This is ok by
-  // aircraft orientation standards! Pass gyro rate as rad/s
-//  MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f,  my,  mx, mz);
-  MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,
-                         Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my,
-                         Patella.mx, Patella.mz, Patella.deltat);
+  MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
+  	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
 
 
-Patella.delt_t = millis() - Patella.count;
-if (Patella.delt_t > SleepTime)
-{
+Patella.delt_t = millis() - Patella.count; //is this necessary?
+//if (Patella.delt_t > SleepTime)
+//{
   if(SerialDebug)
   {
-    // Print acceleration values in milligs!
-//        Serial.print("X-acceleration: "); Serial.print(1000*Patella.ax);
-//        Serial.println(" mg ");
-//        Serial.print("Y-acceleration: "); Serial.print(1000*Patella.ay);
-//        Serial.print(" mg ");
-//        Serial.print("Z-acceleration: "); Serial.print(1000*Patella.az);
-//        Serial.println(" mg ");
-    float acc_x = 905/8*Patella.ax;
-    float acc_y = 100*Patella.ay;
-    float acc_z = 100*Patella.az;
-    float new_x = acc_x/ini_x_pat;
-    float new_x2 = 0.0074*new_x*new_x + 0.7876*new_x + 3.0508;
-    
-    Serial.print(new_x + new_x2);
-    Serial.print(",");
-    Serial.print(new_x);
-    Serial.print(",");
-    Serial.print(acc_y/ini_y_pat);
-    Serial.print(",");
-    Serial.println(acc_z/ini_z_pat);
-    
-//        // Print gyro values in degree/sec
-    //Serial.print("X-gyro rate: "); Serial.print(Patella.gx, 3);
-    //Serial.println(" degrees/sec ");
-//        Serial.print("Y-gyro rate: "); Serial.print(Patella.gy, 3);
-//        Serial.print(" degrees/sec ");
-//        Serial.print("Z-gyro rate: "); Serial.print(Patella.gz, 3);
-//        Serial.println(" degrees/sec");
-//
-//        // Print mag values in degree/sec
-    //Serial.print("X-mag field: "); Serial.print(Patella.mx);
-    //Serial.print(" mG ");
-//        Serial.print("Y-mag field: "); Serial.print(Patella.my);
-//        Serial.print(" mG ");
-//        Serial.print("Z-mag field: "); Serial.print(Patella.mz);
-//        Serial.println(" mG");
-#if 0
-    Patella.tempCount = Patella.readTempData();  // Read the adc values
-    // Temperature in degrees Centigrade
-    Patella.temperature = ((float) Patella.tempCount) / 333.87 + 21.0;
-    // Print temperature in degrees Centigrade
-#endif
-//        Serial.print("Temperature is ");  Serial.print(Patella.temperature, 1);
-//        Serial.println(" degrees C");
+    PrintAcc(&Patella);
   }
 
-  Patella.count = millis();
-} // if (Patella.delt_t > 500)
-
-  #if 0
-  else
-  {
-    // Serial print and/or display at 0.5 s rate independent of data rates
-    Patella.delt_t = millis() - Patella.count;
-
-    // update LCD once per half-second independent of read rate
-    if (Patella.delt_t > SleepTime)
-    {
-      if(SerialDebug)
-      {
-        Serial.print("ax = "); Serial.print((int)1000*Patella.ax);
-        Serial.print(" ay = "); Serial.print((int)1000*Patella.ay);
-        Serial.print(" az = "); Serial.print((int)1000*Patella.az);
-        Serial.println(" mg");
-
-        Serial.print("gx = "); Serial.print( Patella.gx, 2);
-        Serial.print(" gy = "); Serial.print( Patella.gy, 2);
-        Serial.print(" gz = "); Serial.print( Patella.gz, 2);
-        Serial.println(" deg/s");
-
-        Serial.print("mx = "); Serial.print( (int)Patella.mx );
-        Serial.print(" my = "); Serial.print( (int)Patella.my );
-        Serial.print(" mz = "); Serial.print( (int)Patella.mz );
-        Serial.println(" mG");
-
-        Serial.print("q0 = "); Serial.print(*getQ());
-        Serial.print(" qx = "); Serial.print(*(getQ() + 1));
-        Serial.print(" qy = "); Serial.print(*(getQ() + 2));
-        Serial.print(" qz = "); Serial.println(*(getQ() + 3));
-      }
-
-// Define output variables from updated quaternion---these are Tait-Bryan
-// angles, commonly used in aircraft orientation. In this coordinate system,
-// the positive z-axis is down toward Earth. Yaw is the angle between Sensor
-// x-axis and Earth magnetic North (or true North if corrected for local
-// declination, looking down on the sensor positive yaw is counterclockwise.
-// Pitch is angle between sensor x-axis and Earth ground plane, toward the
-// Earth is positive, up toward the sky is negative. Roll is angle between
-// sensor y-axis and Earth ground plane, y-axis up is positive roll. These
-// arise from the definition of the homogeneous rotation matrix constructed
-// from quaternions. Tait-Bryan angles as well as Euler angles are
-// non-commutative; that is, the get the correct orientation the rotations
-// must be applied in the correct order which for this configuration is yaw,
-// pitch, and then roll.
-// For more see
-// http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-// which has additional links.
-      Patella.yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ() *
-                    *(getQ()+3)), *getQ() * *getQ() + *(getQ()+1) * *(getQ()+1)
-                    - *(getQ()+2) * *(getQ()+2) - *(getQ()+3) * *(getQ()+3));
-      Patella.pitch = -asin(2.0f * (*(getQ()+1) * *(getQ()+3) - *getQ() *
-                    *(getQ()+2)));
-      Patella.roll  = atan2(2.0f * (*getQ() * *(getQ()+1) + *(getQ()+2) *
-                    *(getQ()+3)), *getQ() * *getQ() - *(getQ()+1) * *(getQ()+1)
-                    - *(getQ()+2) * *(getQ()+2) + *(getQ()+3) * *(getQ()+3));
-      Patella.pitch *= RAD_TO_DEG;
-      Patella.yaw   *= RAD_TO_DEG;
-      // Declination of SparkFun Electronics (40°05'26.6"N 105°11'05.9"W) is
-      //    8° 30' E  ± 0° 21' (or 8.5°) on 2016-07-19
-      // - http://www.ngdc.noaa.gov/geomag-web/#declination
-      Patella.yaw   -= 8.5;
-      Patella.roll  *= RAD_TO_DEG;
-
-      if(SerialDebug)
-      {
-        Serial.print("Yaw, Pitch, Roll: ");
-        Serial.print(Patella.yaw, 2);
-        Serial.print(", ");
-        Serial.print(Patella.pitch, 2);
-        Serial.print(", ");
-        Serial.println(Patella.roll, 2);
-
-        Serial.print("rate = ");
-        Serial.print((float)Patella.sumCount/Patella.sum, 2);
-        Serial.println(" Hz");
-      }
-      Patella.count = millis();
-      Patella.sumCount = 0;
-      Patella.sum = 0;
-    } // if (Patella.delt_t > 500)
-  } // if (AHRS)
-#endif
+  Patella.count = millis(); //is this necessary?
+//}
   delay(SleepTime);
 }
