@@ -32,7 +32,7 @@
 #define SleepTime 100
 
 MPU9250 Patella;
-MPU9250 Quad;
+//MPU9250 Quad;
 
 //Store sensitivity values
 float ini_x_pat;
@@ -144,25 +144,25 @@ void setup()
   // Read the WHO_AM_I register, this is a good test of communication
   byte c = Patella.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
   Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);
-  byte c_2 = Quad.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
+  //byte c_2 = Quad.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  //Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
 
 
-  if (c == 0x71 && c_2 == 0x71) // WHO_AM_I should always be 0x71
+  if (c == 0x71 /*&& c_2 == 0x71*/) // WHO_AM_I should always be 0x71
   {
     Serial.println("MPU9250 is online...");
 
     // Start by performing self test and reporting values
     TestSensor(&Patella);
-    TestSensor(&Quad);
+    //TestSensor(&Quad);
 
     // Calibrate gyro and accelerometers, load biases in bias registers
     Patella.calibrateMPU9250(Patella.gyroBias, Patella.accelBias);
-    Quad.calibrateMPU9250(Quad.gyroBias, Quad.accelBias);
+    //Quad.calibrateMPU9250(Quad.gyroBias, Quad.accelBias);
     
 
     Patella.initMPU9250();
-    Quad.initMPU9250();
+    //Quad.initMPU9250();
     // Initialize device for active mode read of acclerometer, gyroscope, and temperature
     Serial.println("MPU9250 initialized for active data mode....");
 
@@ -170,19 +170,19 @@ void setup()
     // communication
     byte d = Patella.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
     Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d, HEX);
-    byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
-    Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
-    if(d_2 != 0x48 || d != 0x48){ Serial.println("magnetometer failed to calibrate"); return;}
+    //byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
+    //Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
+    //if(d_2 != 0x48 || d != 0x48){ Serial.println("magnetometer failed to calibrate"); return;}
 
     // Get magnetometer calibration from AK8963 ROM
     Patella.initAK8963(Patella.magCalibration);
-    Quad.initAK8963(Quad.magCalibration);
+    //Quad.initAK8963(Quad.magCalibration);
     // Initialize device for active mode read of magnetometer
     Serial.println("AK8963 initialized for active data mode....");
     if (SerialDebug)
     {
 		SetMagCalibrationValues(&Patella, &ini_x_pat, &ini_y_pat, &ini_z_pat);
-		SetMagCalibrationValues(&Quad, &ini_x_quad, &ini_y_quad, &ini_z_quad);
+		//SetMagCalibrationValues(&Quad, &ini_x_quad, &ini_y_quad, &ini_z_quad);
     }
 
   } // if (c == 0x71)
