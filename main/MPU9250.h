@@ -167,6 +167,7 @@
 #define ZA_OFFSET_H        0x7D
 #define ZA_OFFSET_L        0x7E
 
+/*
 // Using the MPU-9250 breakout board, ADO is set to 0
 // Seven-bit device address is 110100 for ADO = 0 and 110101 for ADO = 1
 #define ADO 0
@@ -176,6 +177,7 @@
 #define MPU9250_ADDRESS 0x68  // Device address when ADO = 0
 #define AK8963_ADDRESS  0x0C   // Address of magnetometer
 #endif // AD0
+*/
 
 class MPU9250
 {
@@ -209,6 +211,7 @@ class MPU9250
     uint8_t Mmode = 0x02;
 
   public:
+    const uint8_t MPU9250_ADDRESS;
     float pitch, yaw, roll;
     float temperature;   // Stores the real internal chip temperature in Celsius
     int16_t tempCount;   // Temperature raw count output
@@ -234,6 +237,7 @@ class MPU9250
     int16_t accelCount[3];
     
   public:
+    MPU9250( uint8_t ID );
     void getMres();
     void getGres();
     void getAres();

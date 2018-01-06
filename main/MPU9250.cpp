@@ -5,6 +5,8 @@
 //====== and temperature data
 //==============================================================================
 
+MPU9250::MPU9250(uint8_t ID) : MPU9250_ADDRESS(ID) {};
+
 void MPU9250::getMres() {
   switch (Mscale)
   {

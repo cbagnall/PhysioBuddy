@@ -35,12 +35,14 @@
 #define Y_MAG_CORRECTION 120
 #define Z_MAG_CORRECTION 125
 
-#define Latitude 39.399501
+#define Latitude 39.399501 //TODO use these
 #define Longitude -84.561335
 
-MPU9250 Patella;
-//MPU9250 Quad;
+MPU9250 Patella(0x68);
+MPU9250 Quad(0x69);
 
+Quaternion Patella_orientation;
+Quaternion Quad_orientation;
 
 void TestSensor(MPU9250* sensor)
 {
@@ -102,9 +104,9 @@ void ReadGyro(MPU9250* sensor)
     sensor->gz = (float)sensor->gyroCount[2]*sensor->gRes;
 }
 
-void PrintOrientation(MPU9250* sensor)
+void PrintOrientation(MPU9250* sensor, Quaternion* orientation)
 {
-    float* Q = getQ();
+    const float* Q = orientation->getQ();
     
     //sensor->yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ() * *(getQ()+3)), *getQ() * *getQ() + *(getQ()+1) * *(getQ()+1) - *(getQ()+2) * *(getQ()+2) - *(getQ()+3) * *(getQ()+3));
     //sensor->roll  = atan2(2.0f * (*getQ() * *(getQ()+1) + *(getQ()+2) * *(getQ()+3)), *getQ() * *getQ() - *(getQ()+1) * *(getQ()+1) - *(getQ()+2) * *(getQ()+2) + *(getQ()+3) * *(getQ()+3));
@@ -121,60 +123,90 @@ void PrintOrientation(MPU9250* sensor)
 
 }
 
+void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* sensor2, Quaternion* orientation2)
+{
+ const float* Q1 = orientation1->getQ(); 
+ const float* Q2 = orientation2->getQ(); 
+ 
+ sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
+ sensor1->pitch *= RAD_TO_DEG;
+ Serial.print(sensor1->pitch);
+ Serial.print(",");
+ sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
+ sensor2->pitch *= RAD_TO_DEG;
+ Serial.println(sensor2->pitch);
+  
+}
+
+
 void setup()
 {
+  //--------------------------------------------------Initialize I2C at 400 kbit/sec, Serial to 9600 baud rate, and clock to 16Mhz / 64 = 250KHz
   Wire.begin();
-  // TWBR = 12;  // 400 kbit/sec I2C speed
   Serial.begin(9600);
   SPI.setClockDivider(SPI_CLOCK_DIV64);
 
-  // Read the WHO_AM_I register, this is a good test of communication
-  byte c = Patella.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);
-  //byte c_2 = Quad.readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  //Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
+  // Read the WHO_AM_I register, this is a good test of communication  
+  byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);  
+  byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
 
 
-  if (c == 0x71 /*&& c_2 == 0x71*/) // WHO_AM_I should always be 0x71
+  if (c == 0x71) // WHO_AM_I should always be 0x71
   {
-    Serial.println("MPU9250 is online...");
+    Serial.println("MPU9250 #1 is online...");
 
     // Start by performing self test and reporting values
     TestSensor(&Patella);
-    //TestSensor(&Quad);
 
     // Calibrate gyro and accelerometers, load biases in bias registers
     Patella.calibrateMPU9250(Patella.gyroBias, Patella.accelBias);
-    //Quad.calibrateMPU9250(Quad.gyroBias, Quad.accelBias);
-    
-
     Patella.initMPU9250();
-    //Quad.initMPU9250();
-    // Initialize device for active mode read of acclerometer, gyroscope, and temperature
-    Serial.println("MPU9250 initialized for active data mode....");
 
-    // Read the WHO_AM_I register of the magnetometer, this is a good test of
-    // communication
+    // Read the WHO_AM_I register of the magnetometer, this is a good test of communication
     byte d = Patella.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
     Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d, HEX);
-    //byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
-    //Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
-    //if(d_2 != 0x48 || d != 0x48){ Serial.println("magnetometer failed to calibrate"); return;}
+    if(d != 0x48){ Serial.println("magnetometer #1 failed to calibrate"); return;}
 
     // Get magnetometer calibration from AK8963 ROM
     Patella.initAK8963(Patella.magCalibration);
-    //Quad.initAK8963(Quad.magCalibration);
-    // Initialize device for active mode read of magnetometer
-    Serial.println("AK8963 initialized for active data mode....");
-
   } // if (c == 0x71)
+  
   else
   {
-    Serial.print("Could not connect to MPU9250: 0x");
-    Serial.println(c, HEX);
+    Serial.println("Could not connect to MPU9250 #1");
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   }
+  
+  if (c_2 == 0x71) // WHO_AM_I should always be 0x71&& c_2 == 0x71
+  {
+    Serial.println("MPU9250 #2 is online...");
+
+    // Start by performing self test and reporting values
+    TestSensor(&Quad);
+
+    // Calibrate gyro and accelerometers, load biases in bias registers
+    Quad.calibrateMPU9250(Quad.gyroBias, Quad.accelBias);    
+    Quad.initMPU9250();
+
+    // Read the WHO_AM_I register of the magnetometer, this is a good test of communication
+    byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
+    Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
+    if(d_2 != 0x48){ Serial.println("magnetometer #2 failed to calibrate..or #1, we're not sure.."); return;}
+
+    // Get magnetometer calibration from AK8963 ROM
+    Quad.initAK8963(Quad.magCalibration);    
+  }
+  
+  else
+  {
+    Serial.println("Could not connect to MPU9250 #2");
+    delay(5000); // Loop forever if communication doesn't happen recursively
+    setup();
+  }
+  
 }
 
 void loop()
@@ -182,23 +214,36 @@ void loop()
     
 	ReadAccel(&Patella);
 	ReadGyro(&Patella);
-	ReadMag(&Patella);    
+	ReadMag(&Patella);   
+
+  ReadAccel(&Quad);
+  ReadGyro(&Quad);
+  ReadMag(&Quad); 
 
   // Must be called before updating quaternions!
   Patella.updateTime();
-  MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
+  Quad.updateTime();
+  
+  Patella_orientation.MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
   	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
+    
+  Quad_orientation.MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
+    Quad.gy*DEG_TO_RAD, Quad.gz*DEG_TO_RAD, Quad.my, Quad.mx, Quad.mz, Quad.deltat);
 
     
   Patella.delt_t = millis() - Patella.count;
-  //Quad.delt_t = millis() - Quad.count;
+  Quad.delt_t = millis() - Quad.count;
   
-  if (Patella.delt_t > READ_TIME /*&& Quad.delt_t > READ_TIME */) 
+  if (Patella.delt_t > READ_TIME && Quad.delt_t > READ_TIME ) 
   {
-    PrintOrientation(&Patella);
+    //PrintOrientation(&Patella);
+    Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
     
     Patella.count = millis();
     Patella.sumCount = 0;
     Patella.sum = 0;
+    Quad.count = millis();
+    Quad.sumCount = 0;
+    Quad.sum = 0;
   }
 }
