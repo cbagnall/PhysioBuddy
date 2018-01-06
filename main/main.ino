@@ -27,20 +27,20 @@
 #include "quaternionFilters.h"
 #include "MPU9250.h"
 
-#define AHRS false         // Set to false for basic data read
-#define SerialDebug true  // Set to true to get Serial output for debugging
-#define SleepTime 100
+
+#define SerialDebug false  // TODO Set to true to get Serial output for debugging
+#define READ_TIME 100 //constant read time of 10Hz
+
+#define X_MAG_CORRECTION 470
+#define Y_MAG_CORRECTION 120
+#define Z_MAG_CORRECTION 125
+
+#define Latitude 39.399501
+#define Longitude -84.561335
 
 MPU9250 Patella;
 //MPU9250 Quad;
 
-//Store sensitivity values
-float ini_x_pat;
-float ini_y_pat;
-float ini_z_pat;
-float ini_x_quad;
-float ini_y_quad;
-float ini_z_quad;
 
 void TestSensor(MPU9250* sensor)
 {
@@ -59,52 +59,30 @@ void TestSensor(MPU9250* sensor)
     Serial.print(sensor->SelfTest[5],1); Serial.println("% of factory value");  
 }
 
-void SetMagCalibrationValues(MPU9250* sensor, float* x, float* y, float* z)
+void ReadAccel(MPU9250* sensor)
 {
-      Serial.print("X-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[0], 2);
-      *x = sensor->magCalibration[0];
-      Serial.print("Y-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[1], 2);
-      *y = sensor->magCalibration[1];
-      Serial.print("Z-Axis sensitivity adjustment value ");
-      Serial.println(sensor->magCalibration[2], 2);
-      *z = sensor->magCalibration[2];	
-}
-
-void ReadAccel(MPU9250* sensor, float x_ini, float y_ini, float z_ini)
-{
-	float X_A = 0.0074, X_B = 0.7876, X_C = 3.0508;
-	float Y_A = 1, Y_B = 1, Y_C = 1; //TODO
-	float Z_A = 1, Z_B = 1, Z_C = 1;//TODO
-
-	sensor->readAccelData(sensor->accelCount);  // Read the x/y/z adc values
+	  sensor->readAccelData(sensor->accelCount);  // Read the x/y/z adc values
     sensor->getAres();
+    
     // Now we'll calculate the accleration value into actual g's
     // This depends on scale being set
-    sensor->ax = (float)(905/8)*(sensor->accelCount[0]*sensor->aRes) / x_ini;
-    sensor->ay = (float)(100)*sensor->accelCount[1]*sensor->aRes / y_ini;
-    sensor->az = (float)(100)*sensor->accelCount[2]*sensor->aRes / z_ini;
-
-    float x_offset = X_A*(sensor->ax)*(sensor->ax) + X_B*(sensor->ax) + X_C;
-    float y_offset = 0; //TODO
-    float z_offset = 0; //TODO
-    sensor->ax += x_offset;
-    sensor->ay += y_offset;
-    sensor->az += z_offset;
+    sensor->ax = (float)sensor->accelCount[0]*sensor->aRes;
+    sensor->ay = (float)sensor->accelCount[1]*sensor->aRes;
+    sensor->az = (float)sensor->accelCount[2]*sensor->aRes;
 }
 
 void ReadMag(MPU9250* sensor)
 {
 	sensor->readMagData(sensor->magCount);  // Read the x/y/z adc values
     sensor->getMres();
+    
     // User environmental x-axis correction in milliGauss, should be
     // automatically calculated
-    sensor->magbias[0] = +470.;
+    sensor->magbias[0] = X_MAG_CORRECTION;
     // User environmental x-axis correction in milliGauss TODO axis??
-    sensor->magbias[1] = +120.;
+    sensor->magbias[1] = Y_MAG_CORRECTION;
     // User environmental x-axis correction in milliGauss
-    sensor->magbias[2] = +125.;
+    sensor->magbias[2] = Z_MAG_CORRECTION;
     // Calculate the magnetometer values in milliGauss
     // Include factory calibration per data sheet and user environmental corrections
     // Get actual magnetometer value, this depends on scale being set
@@ -115,7 +93,7 @@ void ReadMag(MPU9250* sensor)
 
 void ReadGyro(MPU9250* sensor)
 {
-	sensor->readGyroData(sensor->gyroCount);  // Read the x/y/z adc values
+	  sensor->readGyroData(sensor->gyroCount);  // Read the x/y/z adc values
     sensor->getGres();
     //Calculate the gyro value into actual degrees per second
     // This depends on scale being set
@@ -124,13 +102,22 @@ void ReadGyro(MPU9250* sensor)
     sensor->gz = (float)sensor->gyroCount[2]*sensor->gRes;
 }
 
-void PrintAcc(MPU9250* sensor)
+void PrintOrientation(MPU9250* sensor)
 {
-	Serial.print(sensor->ax);
-    Serial.print(",");
-    Serial.print(sensor->ay);
-    Serial.print(",");
-    Serial.println(sensor->az);
+    float* Q = getQ();
+    
+    //sensor->yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ() * *(getQ()+3)), *getQ() * *getQ() + *(getQ()+1) * *(getQ()+1) - *(getQ()+2) * *(getQ()+2) - *(getQ()+3) * *(getQ()+3));
+    //sensor->roll  = atan2(2.0f * (*getQ() * *(getQ()+1) + *(getQ()+2) * *(getQ()+3)), *getQ() * *getQ() - *(getQ()+1) * *(getQ()+1) - *(getQ()+2) * *(getQ()+2) + *(getQ()+3) * *(getQ()+3));
+    sensor->pitch = -asin(2.0f * (Q[1] * Q[3] - Q[0] * Q[2]));
+    sensor->pitch *= RAD_TO_DEG;
+    //sensor->yaw   *= RAD_TO_DEG;
+    //sensor->yaw   -= 8.5;
+    //sensor->roll  *= RAD_TO_DEG;
+    //Serial.print(sensor->yaw);
+    //Serial.print(",");
+    Serial.println(sensor->pitch);
+    //Serial.print(",");
+    //Serial.println(sensor->roll);
 
 }
 
@@ -179,11 +166,6 @@ void setup()
     //Quad.initAK8963(Quad.magCalibration);
     // Initialize device for active mode read of magnetometer
     Serial.println("AK8963 initialized for active data mode....");
-    if (SerialDebug)
-    {
-		SetMagCalibrationValues(&Patella, &ini_x_pat, &ini_y_pat, &ini_z_pat);
-		//SetMagCalibrationValues(&Quad, &ini_x_quad, &ini_y_quad, &ini_z_quad);
-    }
 
   } // if (c == 0x71)
   else
@@ -198,7 +180,7 @@ void setup()
 void loop()
 {
     
-	ReadAccel(&Patella, ini_x_pat, ini_y_pat, ini_z_pat);
+	ReadAccel(&Patella);
 	ReadGyro(&Patella);
 	ReadMag(&Patella);    
 
@@ -207,16 +189,16 @@ void loop()
   MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
   	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
 
-
-Patella.delt_t = millis() - Patella.count; //is this necessary?
-//if (Patella.delt_t > SleepTime)
-//{
-  if(SerialDebug)
+    
+  Patella.delt_t = millis() - Patella.count;
+  //Quad.delt_t = millis() - Quad.count;
+  
+  if (Patella.delt_t > READ_TIME /*&& Quad.delt_t > READ_TIME */) 
   {
-    PrintAcc(&Patella);
+    PrintOrientation(&Patella);
+    
+    Patella.count = millis();
+    Patella.sumCount = 0;
+    Patella.sum = 0;
   }
-
-  Patella.count = millis(); //is this necessary?
-//}
-  delay(SleepTime);
 }
