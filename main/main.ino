@@ -130,8 +130,9 @@ void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* senso
  
  sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
  sensor1->pitch *= RAD_TO_DEG;
+ Serial.print("Sensor 1: ");
  Serial.print(sensor1->pitch);
- Serial.print(",");
+ Serial.print(", Sensor 2: ");
  sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
  sensor2->pitch *= RAD_TO_DEG;
  Serial.println(sensor2->pitch);
@@ -146,6 +147,7 @@ void setup()
   Serial.begin(9600);
   SPI.setClockDivider(SPI_CLOCK_DIV64);
 
+  delay(10000); //sleep for 10 seconds to give bluetooth a chance to pair for demo
   // Read the WHO_AM_I register, this is a good test of communication  
   byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
   Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);  
