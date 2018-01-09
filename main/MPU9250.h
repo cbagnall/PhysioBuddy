@@ -238,6 +238,7 @@ class MPU9250
     
   public:
     MPU9250( uint8_t ID );
+    uint8_t getMmode();
     void getMres();
     void getGres();
     void getAres();
@@ -246,7 +247,7 @@ class MPU9250
     void readMagData(int16_t *);
     int16_t readTempData();
     void updateTime();
-    void initAK8963(float *);
+    void initAK8963(float *mag_calibration, float* mag_bias);
     void initMPU9250();
     void calibrateMPU9250(float * gyroBias, float * accelBias);
     void MPU9250SelfTest(float * destination);

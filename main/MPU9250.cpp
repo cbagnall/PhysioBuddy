@@ -7,6 +7,11 @@
 
 MPU9250::MPU9250(uint8_t ID) : MPU9250_ADDRESS(ID) {};
 
+uint8_t MPU9250::getMmode()
+{
+  return Mmode;
+}
+
 void MPU9250::getMres() {
   switch (Mscale)
   {
@@ -126,7 +131,7 @@ void MPU9250::updateTime()
   sumCount++;
 }
 
-void MPU9250::initAK8963(float * destination)
+void MPU9250::initAK8963(float* mag_calibration, float* mag_bias)
 {
   // First extract the factory calibration for each magnetometer axis
   uint8_t rawData[3];  // x/y/z gyro calibration data stored here
@@ -135,9 +140,9 @@ void MPU9250::initAK8963(float * destination)
   writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
   delay(10);
   readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);  // Read the x-, y-, and z-axis calibration values
-  destination[0] =  (float)(rawData[0] - 128)/256. + 1.;   // Return x-axis sensitivity adjustment values, etc.
-  destination[1] =  (float)(rawData[1] - 128)/256. + 1.;  
-  destination[2] =  (float)(rawData[2] - 128)/256. + 1.; 
+  mag_calibration[0] =  (float)(rawData[0] - 128)/256. + 1.;   // Return x-axis sensitivity adjustment values, etc.
+  mag_calibration[1] =  (float)(rawData[1] - 128)/256. + 1.;  
+  mag_calibration[2] =  (float)(rawData[2] - 128)/256. + 1.; 
   writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
   delay(10);
   // Configure the magnetometer for continuous read and highest resolution
@@ -145,6 +150,13 @@ void MPU9250::initAK8963(float * destination)
   // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
   writeByte(AK8963_ADDRESS, AK8963_CNTL, Mscale << 4 | Mmode); // Set magnetometer data resolution and sample ODR
   delay(10);
+  
+  // User environmental x-axis correction in milliGauss, should be automatically calculated
+  mag_bias[0] = 0;//X_MAG_CORRECTION; //TODO
+  // User environmental x-axis correction in milliGauss
+  mag_bias[1] = 0;//Y_MAG_CORRECTION;
+  // User environmental x-axis correction in milliGauss
+  mag_bias[2] = 0;//Z_MAG_CORRECTION;
 }
 
 void MPU9250::initMPU9250()

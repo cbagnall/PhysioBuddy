@@ -29,20 +29,74 @@
 
 
 #define SerialDebug false  // TODO Set to true to get Serial output for debugging
-#define READ_TIME 100 //constant read time of 10Hz
+#define READ_TIME 125 //Send results to serial at time of 8Hz
 
 #define X_MAG_CORRECTION 470
 #define Y_MAG_CORRECTION 120
 #define Z_MAG_CORRECTION 125
 
-#define Latitude 39.399501 //TODO use these
-#define Longitude -84.561335
+#define Latitude 43.254738 //These are for 98 Ward 
+#define Longitude -79.922589 
+#define YAW_CORRECTION 9.13 //This was calculated from https://www.ngdc.noaa.gov/geomag-web/
 
 MPU9250 Patella(0x68);
 MPU9250 Quad(0x69);
 
 Quaternion Patella_orientation;
 Quaternion Quad_orientation;
+
+void Calibrate_Mag_Bias(MPU9250* sensor) 
+{
+ uint16_t ii = 0, sample_count = 0;
+ int32_t mag_bias[3] = {0, 0, 0};
+ int16_t mag_max[3] = {-32767, -32767, -32767}, mag_min[3] = {32767, 32767, 32767}, mag_temp[3] = {0, 0, 0};
+
+ Serial.println("Mag Calibration: Wave device in a figure eight until done!");
+ delay(4000);
+
+  // shoot for ~fifteen seconds of mag data
+  if(sensor->getMmode() == 0x02) sample_count = 128;  // at 8 Hz ODR, new mag data is available every 125 ms
+  //if(sensor->getMmode() == 0x06) sample_count = 1500;  // at 100 Hz ODR, new mag data is available every 10 ms
+  for(ii = 0; ii < sample_count; ii++) {
+    sensor->readMagData(mag_temp);   // Read the mag data   
+    for (int jj = 0; jj < 3; jj++) {
+      if(mag_temp[jj] > mag_max[jj]) {mag_max[jj] = mag_temp[jj];}
+      if(mag_temp[jj] < mag_min[jj]) {mag_min[jj] = mag_temp[jj];}
+    }
+    if(sensor->getMmode() == 0x02) {delay(135);} // at 8 Hz ODR, new mag data is available every 125 ms
+  }
+
+  // Get hard iron correction
+  mag_bias[0]  = (mag_max[0] + mag_min[0])/2;  // get average x mag bias in counts
+  mag_bias[1]  = (mag_max[1] + mag_min[1])/2;  // get average y mag bias in counts
+  mag_bias[2]  = (mag_max[2] + mag_min[2])/2;  // get average z mag bias in counts
+
+  sensor->getMres();
+  
+  Serial.print("x bias: ");
+  Serial.println(mag_bias[0]*sensor->mRes*sensor->magCalibration[0]);
+  Serial.print("y bias: ");
+  Serial.println(mag_bias[1]*sensor->mRes*sensor->magCalibration[1]);
+  Serial.print("z bias: ");
+  Serial.println(mag_bias[2]*sensor->mRes*sensor->magCalibration[2]);
+
+  float temp[3] = {0,0,0};
+  temp[0] = (mag_max[0] - mag_min[0])/2;
+  temp[1] = (mag_max[1] - mag_min[1])/2;
+  temp[2] = (mag_max[2] - mag_min[2])/2;
+  float avg_rad = temp[0] + temp[1] + temp[2];
+  avg_rad /= 3.0;
+
+  
+  Serial.print("x scale: ");
+  Serial.println(avg_rad/temp[0]);
+  Serial.print("y scale: ");
+  Serial.println(avg_rad/temp[1]);
+  Serial.print("z scale: ");
+  Serial.println(avg_rad/temp[2]);
+  
+  Serial.println("Mag Calibration done!");
+}
 
 void TestSensor(MPU9250* sensor)
 {
@@ -75,16 +129,8 @@ void ReadAccel(MPU9250* sensor)
 
 void ReadMag(MPU9250* sensor)
 {
-	sensor->readMagData(sensor->magCount);  // Read the x/y/z adc values
+	  sensor->readMagData(sensor->magCount);  // Read the x/y/z adc values
     sensor->getMres();
-    
-    // User environmental x-axis correction in milliGauss, should be
-    // automatically calculated
-    sensor->magbias[0] = X_MAG_CORRECTION;
-    // User environmental x-axis correction in milliGauss TODO axis??
-    sensor->magbias[1] = Y_MAG_CORRECTION;
-    // User environmental x-axis correction in milliGauss
-    sensor->magbias[2] = Z_MAG_CORRECTION;
     // Calculate the magnetometer values in milliGauss
     // Include factory calibration per data sheet and user environmental corrections
     // Get actual magnetometer value, this depends on scale being set
@@ -113,7 +159,7 @@ void PrintOrientation(MPU9250* sensor, Quaternion* orientation)
     sensor->pitch = -asin(2.0f * (Q[1] * Q[3] - Q[0] * Q[2]));
     sensor->pitch *= RAD_TO_DEG;
     //sensor->yaw   *= RAD_TO_DEG;
-    //sensor->yaw   -= 8.5;
+    //sensor->yaw   -= YAW_CORRECTION;
     //sensor->roll  *= RAD_TO_DEG;
     //Serial.print(sensor->yaw);
     //Serial.print(",");
@@ -144,16 +190,16 @@ void setup()
 {
   //--------------------------------------------------Initialize I2C at 400 kbit/sec, Serial to 9600 baud rate, and clock to 16Mhz / 64 = 250KHz
   Wire.begin();
-  Serial.begin(9600);
+  Serial.begin(115200);
   SPI.setClockDivider(SPI_CLOCK_DIV64);
 
+  Serial.println("Enabled Serial: 9600.      Waiting for bluetooth...");
+ 
   delay(10000); //sleep for 10 seconds to give bluetooth a chance to pair for demo
+
   // Read the WHO_AM_I register, this is a good test of communication  
   byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX);  
   byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c_2, HEX);
-
 
   if (c == 0x71) // WHO_AM_I should always be 0x71
   {
@@ -168,11 +214,15 @@ void setup()
 
     // Read the WHO_AM_I register of the magnetometer, this is a good test of communication
     byte d = Patella.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
-    Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d, HEX);
     if(d != 0x48){ Serial.println("magnetometer #1 failed to calibrate"); return;}
 
     // Get magnetometer calibration from AK8963 ROM
-    Patella.initAK8963(Patella.magCalibration);
+    Patella.initAK8963(Patella.magCalibration, Patella.magbias);
+  //------------------------------------- Debug to calculate offsets
+  Calibrate_Mag_Bias(&Patella);
+  delay(4000);
+  exit(0);
+  //------------------------------------
   } // if (c == 0x71)
   
   else
@@ -181,7 +231,7 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   }
-  
+
   if (c_2 == 0x71) // WHO_AM_I should always be 0x71&& c_2 == 0x71
   {
     Serial.println("MPU9250 #2 is online...");
@@ -195,11 +245,10 @@ void setup()
 
     // Read the WHO_AM_I register of the magnetometer, this is a good test of communication
     byte d_2 = Quad.readByte(AK8963_ADDRESS, WHO_AM_I_AK8963);
-    Serial.print("AK8963 "); Serial.print("I AM "); Serial.print(d_2, HEX);
     if(d_2 != 0x48){ Serial.println("magnetometer #2 failed to calibrate..or #1, we're not sure.."); return;}
 
     // Get magnetometer calibration from AK8963 ROM
-    Quad.initAK8963(Quad.magCalibration);    
+    Quad.initAK8963(Quad.magCalibration, Quad.magbias);    
   }
   
   else
@@ -207,13 +256,15 @@ void setup()
     Serial.println("Could not connect to MPU9250 #2");
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
-  }
+  } 
   
-}
+} //setup()
 
 void loop()
 {
-    
+  delay(4000);
+  exit(0);  
+  
 	ReadAccel(&Patella);
 	ReadGyro(&Patella);
 	ReadMag(&Patella);   
