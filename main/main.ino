@@ -29,15 +29,20 @@
 
 
 #define SerialDebug false  // TODO Set to true to get Serial output for debugging
-#define READ_TIME 125 //Send results to serial at time of 8Hz
-
-#define X_MAG_CORRECTION 470
-#define Y_MAG_CORRECTION 120
-#define Z_MAG_CORRECTION 125
+#define READ_TIME 100 //Send results to serial at time of 10Hz
 
 #define Latitude 43.254738 //These are for 98 Ward 
 #define Longitude -79.922589 
 #define YAW_CORRECTION 9.13 //This was calculated from https://www.ngdc.noaa.gov/geomag-web/
+
+#define X_MAG_CORRECTION_BIAS 69 //470
+#define Y_MAG_CORRECTION_BIAS 240 //120
+#define Z_MAG_CORRECTION_BIAS 192 //125
+#define X_MAG_CORRECTION_SCALE 1.01
+#define Y_MAG_CORRECTION_SCALE 1.03
+#define Z_MAG_CORRECTION_SCALE 0.96
+
+//#define CALIBRATE_MAG
 
 MPU9250 Patella(0x68);
 MPU9250 Quad(0x69);
@@ -45,6 +50,7 @@ MPU9250 Quad(0x69);
 Quaternion Patella_orientation;
 Quaternion Quad_orientation;
 
+#ifdef CALIBRATE_MAG
 void Calibrate_Mag_Bias(MPU9250* sensor) 
 {
  uint16_t ii = 0, sample_count = 0;
@@ -86,7 +92,6 @@ void Calibrate_Mag_Bias(MPU9250* sensor)
   temp[2] = (mag_max[2] - mag_min[2])/2;
   float avg_rad = temp[0] + temp[1] + temp[2];
   avg_rad /= 3.0;
-
   
   Serial.print("x scale: ");
   Serial.println(avg_rad/temp[0]);
@@ -97,6 +102,7 @@ void Calibrate_Mag_Bias(MPU9250* sensor)
   
   Serial.println("Mag Calibration done!");
 }
+#endif /*Calibrate_Mag*/
 
 void TestSensor(MPU9250* sensor)
 {
@@ -134,9 +140,9 @@ void ReadMag(MPU9250* sensor)
     // Calculate the magnetometer values in milliGauss
     // Include factory calibration per data sheet and user environmental corrections
     // Get actual magnetometer value, this depends on scale being set
-    sensor->mx = (float)sensor->magCount[0]*sensor->mRes*sensor->magCalibration[0] - sensor->magbias[0];
-    sensor->my = (float)sensor->magCount[1]*sensor->mRes*sensor->magCalibration[1] - sensor->magbias[1];
-    sensor->mz = (float)sensor->magCount[2]*sensor->mRes*sensor->magCalibration[2] - sensor->magbias[2];
+    sensor->mx = X_MAG_CORRECTION_SCALE*sensor->magCount[0]*sensor->mRes - X_MAG_CORRECTION_BIAS; //(float)sensor->magCount[0]*sensor->mRes*sensor->magCalibration[0] - sensor->magbias[0];
+    sensor->my = Y_MAG_CORRECTION_SCALE*sensor->magCount[1]*sensor->mRes - Y_MAG_CORRECTION_BIAS; //(float)sensor->magCount[1]*sensor->mRes*sensor->magCalibration[1] - sensor->magbias[1];
+    sensor->mz = Z_MAG_CORRECTION_SCALE*sensor->magCount[2]*sensor->mRes - Z_MAG_CORRECTION_BIAS; //(float)sensor->magCount[2]*sensor->mRes*sensor->magCalibration[2] - sensor->magbias[2];
 }
 
 void ReadGyro(MPU9250* sensor)
@@ -181,8 +187,9 @@ void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* senso
  Serial.print(", Sensor 2: ");
  sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
  sensor2->pitch *= RAD_TO_DEG;
- Serial.println(sensor2->pitch);
-  
+ Serial.print(sensor2->pitch);
+ Serial.print(", Difference: ");
+ Serial.println(abs(sensor1->pitch - sensor2->pitch));  
 }
 
 
@@ -218,11 +225,14 @@ void setup()
 
     // Get magnetometer calibration from AK8963 ROM
     Patella.initAK8963(Patella.magCalibration, Patella.magbias);
+    
+#ifdef CALIBRATE_MAG
   //------------------------------------- Debug to calculate offsets
   Calibrate_Mag_Bias(&Patella);
   delay(4000);
   exit(0);
   //------------------------------------
+#endif
   } // if (c == 0x71)
   
   else
@@ -262,8 +272,10 @@ void setup()
 
 void loop()
 {
+#ifdef CALIBRATE_MAG
   delay(4000);
   exit(0);  
+#endif
   
 	ReadAccel(&Patella);
 	ReadGyro(&Patella);
