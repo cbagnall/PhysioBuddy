@@ -42,13 +42,15 @@
 #define Y_MAG_CORRECTION_SCALE 1.03
 #define Z_MAG_CORRECTION_SCALE 0.96
 
+#define SerialSpeed 115200
+
 //#define CALIBRATE_MAG
 
 MPU9250 Patella(0x68);
-MPU9250 Quad(0x69);
+//MPU9250 Quad(0x69);
 
 Quaternion Patella_orientation;
-Quaternion Quad_orientation;
+//Quaternion Quad_orientation;
 
 #ifdef CALIBRATE_MAG
 void Calibrate_Mag_Bias(MPU9250* sensor) 
@@ -197,16 +199,18 @@ void setup()
 {
   //--------------------------------------------------Initialize I2C at 400 kbit/sec, Serial to 9600 baud rate, and clock to 16Mhz / 64 = 250KHz
   Wire.begin();
-  Serial.begin(115200);
+  Serial.begin(SerialSpeed);
   SPI.setClockDivider(SPI_CLOCK_DIV64);
 
-  Serial.println("Enabled Serial: 9600.      Waiting for bluetooth...");
+  Serial.print("Enabled Serial: ");
+  Serial.print(SerialSpeed);
+  Serial.println(" Waiting for bluetooth...");
  
   delay(10000); //sleep for 10 seconds to give bluetooth a chance to pair for demo
 
   // Read the WHO_AM_I register, this is a good test of communication  
   byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  //byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
 
   if (c == 0x71) // WHO_AM_I should always be 0x71
   {
@@ -241,7 +245,7 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   }
-
+/*
   if (c_2 == 0x71) // WHO_AM_I should always be 0x71&& c_2 == 0x71
   {
     Serial.println("MPU9250 #2 is online...");
@@ -267,7 +271,7 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   } 
-  
+  */
 } //setup()
 
 void loop()
@@ -280,35 +284,35 @@ void loop()
 	ReadAccel(&Patella);
 	ReadGyro(&Patella);
 	ReadMag(&Patella);   
-
+/*
   ReadAccel(&Quad);
   ReadGyro(&Quad);
   ReadMag(&Quad); 
-
+*/
   // Must be called before updating quaternions!
   Patella.updateTime();
-  Quad.updateTime();
+  //Quad.updateTime();
   
   Patella_orientation.MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
   	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
     
-  Quad_orientation.MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
+  //Quad_orientation.MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
     Quad.gy*DEG_TO_RAD, Quad.gz*DEG_TO_RAD, Quad.my, Quad.mx, Quad.mz, Quad.deltat);
 
     
   Patella.delt_t = millis() - Patella.count;
-  Quad.delt_t = millis() - Quad.count;
+  //Quad.delt_t = millis() - Quad.count;
   
-  if (Patella.delt_t > READ_TIME && Quad.delt_t > READ_TIME ) 
+  if (Patella.delt_t > READ_TIME /*&& Quad.delt_t > READ_TIME */) 
   {
-    //PrintOrientation(&Patella);
-    Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
+    PrintOrientation(&Patella, &Patella_orientation);
+    //Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
     
     Patella.count = millis();
     Patella.sumCount = 0;
     Patella.sum = 0;
-    Quad.count = millis();
-    Quad.sumCount = 0;
-    Quad.sum = 0;
+    //Quad.count = millis();
+    //Quad.sumCount = 0;
+    //Quad.sum = 0;
   }
 }
