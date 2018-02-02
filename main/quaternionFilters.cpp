@@ -206,3 +206,4 @@ void Quaternion::MahonyQuaternionUpdate(float ax, float ay, float az, float gx, 
   q[3] = q4 * norm;
 }
 
+

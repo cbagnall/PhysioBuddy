@@ -35,16 +35,21 @@
 #define Longitude -79.922589 
 #define YAW_CORRECTION 9.13 //This was calculated from https://www.ngdc.noaa.gov/geomag-web/
 
-#define X_MAG_CORRECTION_BIAS 69 //470
-#define Y_MAG_CORRECTION_BIAS 240 //120
-#define Z_MAG_CORRECTION_BIAS 192 //125
-#define X_MAG_CORRECTION_SCALE 1.01
-#define Y_MAG_CORRECTION_SCALE 1.03
-#define Z_MAG_CORRECTION_SCALE 0.96
+#define X_MAG_CORRECTION_BIAS 51 //470
+#define Y_MAG_CORRECTION_BIAS 333 //120
+#define Z_MAG_CORRECTION_BIAS -51 //125
+#define X_MAG_CORRECTION_SCALE 1.03
+#define Y_MAG_CORRECTION_SCALE 1.06
+#define Z_MAG_CORRECTION_SCALE 0.92
 
 #define SerialSpeed 9600
 
 //#define CALIBRATE_MAG
+
+int global_timer_3_seconds = 0;
+int global_average = 0;
+#define DemoOffset 103
+#define DEMO_SCALE 2
 
 MPU9250 Patella(0x68);
 MPU9250 Quad(0x69);
@@ -141,9 +146,9 @@ void ReadMag(MPU9250* sensor)
     // Calculate the magnetometer values in milliGauss
     // Include factory calibration per data sheet and user environmental corrections
     // Get actual magnetometer value, this depends on scale being set
-    sensor->mx = X_MAG_CORRECTION_SCALE*sensor->magCount[0]*sensor->mRes - X_MAG_CORRECTION_BIAS; //(float)sensor->magCount[0]*sensor->mRes*sensor->magCalibration[0] - sensor->magbias[0];
-    sensor->my = Y_MAG_CORRECTION_SCALE*sensor->magCount[1]*sensor->mRes - Y_MAG_CORRECTION_BIAS; //(float)sensor->magCount[1]*sensor->mRes*sensor->magCalibration[1] - sensor->magbias[1];
-    sensor->mz = Z_MAG_CORRECTION_SCALE*sensor->magCount[2]*sensor->mRes - Z_MAG_CORRECTION_BIAS; //(float)sensor->magCount[2]*sensor->mRes*sensor->magCalibration[2] - sensor->magbias[2];
+    sensor->mx = X_MAG_CORRECTION_SCALE*sensor->magCount[0]*sensor->mRes - X_MAG_CORRECTION_BIAS;/* (float)sensor->magCount[0]*sensor->mRes*sensor->magCalibration[0] - sensor->magbias[0];*/
+    sensor->my = Y_MAG_CORRECTION_SCALE*sensor->magCount[1]*sensor->mRes - Y_MAG_CORRECTION_BIAS;/* (float)sensor->magCount[1]*sensor->mRes*sensor->magCalibration[1] - sensor->magbias[1];*/
+    sensor->mz = Z_MAG_CORRECTION_SCALE*sensor->magCount[2]*sensor->mRes - Z_MAG_CORRECTION_BIAS;/* (float)sensor->magCount[2]*sensor->mRes*sensor->magCalibration[2] - sensor->magbias[2];*/
 }
 
 void ReadGyro(MPU9250* sensor)
@@ -175,21 +180,49 @@ void PrintOrientation(MPU9250* sensor, Quaternion* orientation)
 
 }
 
-void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* sensor2, Quaternion* orientation2)
+void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* sensor2, Quaternion* orientation2, bool use_avg)
 {
  const float* Q1 = orientation1->getQ(); 
  const float* Q2 = orientation2->getQ(); 
+
+ //sensor1->yaw   = atan2(2.0f * (*(Q1+1) * *(Q1+2) + *Q1 * *(Q1+3)), *Q1 * *Q1 + *(Q1+1) * *(Q1+1) - *(Q1+2) * *(Q1+2) - *(Q1+3) * *(Q1+3));
+ sensor1->roll  = atan2(2.0f * (*Q1 * *(Q1+1) + *(Q1+2) * *(Q1+3)), *Q1 * *Q1 - *(Q1+1) * *(Q1+1) - *(Q1+2) * *(Q1+2) + *(Q1+3) * *(Q1+3));
+ //sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
+ //sensor1->pitch *= RAD_TO_DEG;
+ //sensor1->yaw   *= RAD_TO_DEG;
+ //sensor1->yaw   -= YAW_CORRECTION;
+ sensor1->roll  *= RAD_TO_DEG * DEMO_SCALE;
  
- sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
- sensor1->pitch *= RAD_TO_DEG;
- Serial.print("Sensor 1: ");
- Serial.print(sensor1->pitch);
- Serial.print(", Sensor 2: ");
- sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
- sensor2->pitch *= RAD_TO_DEG;
- Serial.print(sensor2->pitch);
- Serial.print(", Difference: ");
- Serial.println(abs(sensor1->pitch - sensor2->pitch));  
+ //Serial.print("Sensor 1: ");
+ //Serial.print(sensor1->pitch);
+
+ if(use_avg){
+  Serial.print("Diff: ");
+  Serial.println(sensor1->roll - global_average/global_timer_3_seconds + DemoOffset);
+ }
+ else
+ {
+  global_timer_3_seconds++;
+  global_average += (sensor1->roll);
+ }
+ //Serial.print(", ");
+ //Serial.println(sensor1->roll);
+ //Serial.print(", Sensor 2: ");
+ //Serial.print(", ");
+ //sensor2->yaw   = atan2(2.0f * (*(Q2+1) * *(Q2+2) + *Q2 * *(Q2+3)), *Q2 * *Q2 + *(Q2+1) * *(Q2+1) - *(Q2+2) * *(Q2+2) - *(Q2+3) * *(Q2+3));
+ //sensor2->roll  = atan2(2.0f * (*Q2 * *(Q2+1) + *(Q2+2) * *(Q2+3)), *Q2 * *Q2 - *(Q2+1) * *(Q2+1) - *(Q2+2) * *(Q2+2) + *(Q2+3) * *(Q2+3));
+ //sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
+ //sensor2->pitch *= RAD_TO_DEG;
+ //sensor2->yaw   *= RAD_TO_DEG;
+ //sensor2->yaw   -= YAW_CORRECTION;
+ //sensor2->roll  *= RAD_TO_DEG;
+ //Serial.print(sensor2->pitch);
+ //Serial.print(sensor2->yaw);
+ //Serial.print(sensor2->yaw);
+ //Serial.print(", ");
+ //Serial.println(sensor1->yaw);
+ //Serial.print(", Difference: ");
+ //Serial.println(abs(sensor1->pitch - sensor2->pitch));  */
 }
 
 
@@ -201,16 +234,15 @@ void setup()
 
   delay(3000); //sleep for 3 seconds to give serial a chance to connect
   Serial.print("Enabled Serial: ");
-  Serial.print(SerialSpeed);
-  Serial.println(" Waiting for bluetooth...");
-  delay(7000); //sleep for 7 seconds to give bluetooth a chance to pair for demo
+  Serial.println(SerialSpeed);
+  Serial.println("Waiting for bluetooth...");
+  delay(5000); //sleep for 5 seconds to give bluetooth a chance to pair for demo
  
   
 
   // Read the WHO_AM_I register, this is a good test of communication  
   byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
   byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-
   if (c == 0x71) // WHO_AM_I should always be 0x71
   {
     Serial.println("MPU9250 #1 is online...");
@@ -270,6 +302,7 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   } 
+  Serial.println("Calibrating...");
 } //setup()
 
 void loop()
@@ -303,8 +336,13 @@ void loop()
   
   if (Patella.delt_t > READ_TIME && Quad.delt_t > READ_TIME ) 
   {
-    PrintOrientation(&Patella, &Patella_orientation);
-    Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
+    //PrintOrientation(&Patella, &Patella_orientation);
+    if( global_timer_3_seconds > (1000/READ_TIME) * 3) {
+      Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation, true);
+    }
+    else {
+      Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation, false);
+    }
     
     Patella.count = millis();
     Patella.sumCount = 0;
@@ -314,3 +352,4 @@ void loop()
     Quad.sum = 0;
   }
 }
+

@@ -152,11 +152,11 @@ void MPU9250::initAK8963(float* mag_calibration, float* mag_bias)
   delay(10);
   
   // User environmental x-axis correction in milliGauss, should be automatically calculated
-  mag_bias[0] = 0;//X_MAG_CORRECTION; //TODO
+  mag_bias[0] = 470;//X_MAG_CORRECTION; //TODO
   // User environmental x-axis correction in milliGauss
-  mag_bias[1] = 0;//Y_MAG_CORRECTION;
+  mag_bias[1] = 120;//Y_MAG_CORRECTION;
   // User environmental x-axis correction in milliGauss
-  mag_bias[2] = 0;//Z_MAG_CORRECTION;
+  mag_bias[2] = 125;//Z_MAG_CORRECTION;
 }
 
 void MPU9250::initMPU9250()
@@ -486,4 +486,5 @@ void MPU9250::readBytes(uint8_t address, uint8_t subAddress, uint8_t count,
   while (Wire.available()) {
     dest[i++] = Wire.read(); }         // Put read results in the Rx buffer
 }
+
 
