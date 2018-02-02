@@ -47,10 +47,10 @@
 //#define CALIBRATE_MAG
 
 MPU9250 Patella(0x68);
-//MPU9250 Quad(0x69);
+MPU9250 Quad(0x69);
 
 Quaternion Patella_orientation;
-//Quaternion Quad_orientation;
+Quaternion Quad_orientation;
 
 #ifdef CALIBRATE_MAG
 void Calibrate_Mag_Bias(MPU9250* sensor) 
@@ -129,7 +129,6 @@ void ReadAccel(MPU9250* sensor)
     sensor->getAres();
     
     // Now we'll calculate the accleration value into actual g's
-    // This depends on scale being set
     sensor->ax = (float)sensor->accelCount[0]*sensor->aRes;
     sensor->ay = (float)sensor->accelCount[1]*sensor->aRes;
     sensor->az = (float)sensor->accelCount[2]*sensor->aRes;
@@ -152,7 +151,6 @@ void ReadGyro(MPU9250* sensor)
 	  sensor->readGyroData(sensor->gyroCount);  // Read the x/y/z adc values
     sensor->getGres();
     //Calculate the gyro value into actual degrees per second
-    // This depends on scale being set
     sensor->gx = (float)sensor->gyroCount[0]*sensor->gRes;
     sensor->gy = (float)sensor->gyroCount[1]*sensor->gRes;
     sensor->gz = (float)sensor->gyroCount[2]*sensor->gRes;
@@ -201,15 +199,17 @@ void setup()
   Wire.begin();
   Serial.begin(SerialSpeed);
 
+  delay(3000); //sleep for 3 seconds to give serial a chance to connect
   Serial.print("Enabled Serial: ");
   Serial.print(SerialSpeed);
   Serial.println(" Waiting for bluetooth...");
+  delay(7000); //sleep for 7 seconds to give bluetooth a chance to pair for demo
  
-  delay(10000); //sleep for 10 seconds to give bluetooth a chance to pair for demo
+  
 
   // Read the WHO_AM_I register, this is a good test of communication  
   byte c = Patella.readByte(Patella.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
-  //byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
+  byte c_2 = Quad.readByte(Quad.MPU9250_ADDRESS, WHO_AM_I_MPU9250);
 
   if (c == 0x71) // WHO_AM_I should always be 0x71
   {
@@ -244,7 +244,7 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   }
-/*
+
   if (c_2 == 0x71) // WHO_AM_I should always be 0x71&& c_2 == 0x71
   {
     Serial.println("MPU9250 #2 is online...");
@@ -270,7 +270,6 @@ void setup()
     delay(5000); // Loop forever if communication doesn't happen recursively
     setup();
   } 
-  */
 } //setup()
 
 void loop()
@@ -283,35 +282,35 @@ void loop()
 	ReadAccel(&Patella);
 	ReadGyro(&Patella);
 	ReadMag(&Patella);   
-/*
+
   ReadAccel(&Quad);
   ReadGyro(&Quad);
   ReadMag(&Quad); 
-*/
+
   // Must be called before updating quaternions!
   Patella.updateTime();
-  //Quad.updateTime();
+  Quad.updateTime();
   
   Patella_orientation.MahonyQuaternionUpdate(Patella.ax, Patella.ay, Patella.az, Patella.gx*DEG_TO_RAD,\
   	Patella.gy*DEG_TO_RAD, Patella.gz*DEG_TO_RAD, Patella.my, Patella.mx, Patella.mz, Patella.deltat);
     
-  //Quad_orientation.MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
+  Quad_orientation.MahonyQuaternionUpdate(Quad.ax, Quad.ay, Quad.az, Quad.gx*DEG_TO_RAD,\
     Quad.gy*DEG_TO_RAD, Quad.gz*DEG_TO_RAD, Quad.my, Quad.mx, Quad.mz, Quad.deltat);
 
     
   Patella.delt_t = millis() - Patella.count;
-  //Quad.delt_t = millis() - Quad.count;
+  Quad.delt_t = millis() - Quad.count;
   
-  if (Patella.delt_t > READ_TIME /*&& Quad.delt_t > READ_TIME */) 
+  if (Patella.delt_t > READ_TIME && Quad.delt_t > READ_TIME ) 
   {
     PrintOrientation(&Patella, &Patella_orientation);
-    //Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
+    Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
     
     Patella.count = millis();
     Patella.sumCount = 0;
     Patella.sum = 0;
-    //Quad.count = millis();
-    //Quad.sumCount = 0;
-    //Quad.sum = 0;
+    Quad.count = millis();
+    Quad.sumCount = 0;
+    Quad.sum = 0;
   }
 }
