@@ -42,7 +42,7 @@
 #define Y_MAG_CORRECTION_SCALE 1.03
 #define Z_MAG_CORRECTION_SCALE 0.96
 
-#define SerialSpeed 115200
+#define SerialSpeed 9600
 
 //#define CALIBRATE_MAG
 
@@ -200,7 +200,6 @@ void setup()
   //--------------------------------------------------Initialize I2C at 400 kbit/sec, Serial to 9600 baud rate, and clock to 16Mhz / 64 = 250KHz
   Wire.begin();
   Serial.begin(SerialSpeed);
-  SPI.setClockDivider(SPI_CLOCK_DIV64);
 
   Serial.print("Enabled Serial: ");
   Serial.print(SerialSpeed);
