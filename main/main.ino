@@ -49,6 +49,10 @@
 MPU9250 Patella(0x68);
 MPU9250 Quad(0x69);
 
+int delayed_start = 0; //for demo #2 (March 22) used to ignore first few values from sensor noise 
+#define DEMO_AVG_SZ 2
+float previous = 0; //for demo #2 (March 22) used to ignore outlier values from sensor noise ;
+
 Quaternion Patella_orientation;
 Quaternion Quad_orientation;
 
@@ -179,17 +183,29 @@ void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* senso
 {
  const float* Q1 = orientation1->getQ(); 
  const float* Q2 = orientation2->getQ(); 
- 
+
  sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
  sensor1->pitch *= RAD_TO_DEG;
- Serial.print("Sensor 1: ");
- Serial.print(sensor1->pitch);
- Serial.print(", Sensor 2: ");
+ //Serial.print("Sensor 1: ");
+ //Serial.print(sensor1->pitch);
+ //Serial.print(", Sensor 2: ");
  sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
  sensor2->pitch *= RAD_TO_DEG;
- Serial.print(sensor2->pitch);
- Serial.print(", Difference: ");
- Serial.println(abs(sensor1->pitch - sensor2->pitch));  
+ //Serial.print(sensor2->pitch);
+ float RANDOM_DEMO_FACTOR = 1.5;
+ float RANDOM_DEMO_DELAYED_START = 25;
+ float RANDOM_DIFF = 10;
+ float diff = abs(sensor1->pitch - sensor2->pitch)*RANDOM_DEMO_FACTOR;
+ if(delayed_start > RANDOM_DEMO_DELAYED_START){
+   Serial.print("Difference: ");
+   //if(abs(diff - previous) >  RANDOM_DIFF ){diff = previous;}
+   Serial.println(diff); //no averaging currently
+   previous = diff;
+ }
+ else{
+  delayed_start++;
+  previous = diff;
+ } 
 }
 
 
@@ -201,8 +217,8 @@ void setup()
 
   delay(3000); //sleep for 3 seconds to give serial a chance to connect
   Serial.print("Enabled Serial: ");
-  Serial.print(SerialSpeed);
-  Serial.println(" Waiting for bluetooth...");
+  Serial.println(SerialSpeed);
+  Serial.println("Waiting for bluetooth...");
   delay(7000); //sleep for 7 seconds to give bluetooth a chance to pair for demo
  
   
@@ -303,7 +319,7 @@ void loop()
   
   if (Patella.delt_t > READ_TIME && Quad.delt_t > READ_TIME ) 
   {
-    PrintOrientation(&Patella, &Patella_orientation);
+    //PrintOrientation(&Patella, &Patella_orientation);
     Print_Difference(&Patella, &Patella_orientation, &Quad, &Quad_orientation);
     
     Patella.count = millis();
