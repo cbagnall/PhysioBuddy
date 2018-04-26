@@ -35,12 +35,12 @@
 #define Longitude -79.922589 
 #define YAW_CORRECTION 9.13 //This was calculated from https://www.ngdc.noaa.gov/geomag-web/
 
-#define X_MAG_CORRECTION_BIAS 69 //470
-#define Y_MAG_CORRECTION_BIAS 240 //120
-#define Z_MAG_CORRECTION_BIAS 192 //125
-#define X_MAG_CORRECTION_SCALE 1.01
-#define Y_MAG_CORRECTION_SCALE 1.03
-#define Z_MAG_CORRECTION_SCALE 0.96
+#define X_MAG_CORRECTION_BIAS 493//69 //470
+#define Y_MAG_CORRECTION_BIAS 43//240 //120
+#define Z_MAG_CORRECTION_BIAS 334//192 //125
+#define X_MAG_CORRECTION_SCALE 1.5//1.01
+#define Y_MAG_CORRECTION_SCALE 1.48//1.03
+#define Z_MAG_CORRECTION_SCALE 0.6//0.96
 
 #define SerialSpeed 9600
 
@@ -186,21 +186,41 @@ void Print_Difference(MPU9250* sensor1, Quaternion* orientation1, MPU9250* senso
 
  sensor1->pitch = -asin(2.0f * (Q1[1] * Q1[3] - Q1[0] * Q1[2]));
  sensor1->pitch *= RAD_TO_DEG;
+
+ sensor1->yaw   = atan2(2.0f * (Q1[1] * Q1[2] + Q1[0] * Q1[3]), Q1[0] * Q1[0] + Q1[1] * Q1[1] - Q1[2] * Q1[2] - Q1[3] * Q1[3]);
+ sensor1->yaw *= RAD_TO_DEG;
+
+ sensor1->roll  = atan2(2.0f * (Q1[0] * Q1[1] + Q1[2] * Q1[3]), Q1[0] * Q1[0] - Q1[1] * Q1[1] - Q1[2] * Q1[2] + Q1[3] * Q1[3]);
+ sensor1->roll *= RAD_TO_DEG;
+   
+
+ 
  //Serial.print("Sensor 1: ");
  //Serial.print(sensor1->pitch);
  //Serial.print(", Sensor 2: ");
  sensor2->pitch = -asin(2.0f * (Q2[1] * Q2[3] - Q2[0] * Q2[2]));
  sensor2->pitch *= RAD_TO_DEG;
  //Serial.print(sensor2->pitch);
- float RANDOM_DEMO_FACTOR = 1.5;
+ float RANDOM_DEMO_FACTOR = 1.25;
  float RANDOM_DEMO_DELAYED_START = 25;
  float RANDOM_DIFF = 10;
+ float RANDOM_OVERLAP = 0.9;
  float diff = abs(sensor1->pitch - sensor2->pitch)*RANDOM_DEMO_FACTOR;
  if(delayed_start > RANDOM_DEMO_DELAYED_START){
-   Serial.print("Difference: ");
-   //if(abs(diff - previous) >  RANDOM_DIFF ){diff = previous;}
-   Serial.println(diff); //no averaging currently
-   previous = diff;
+   //|'\  Serial.print("Difference: ");
+   if(0){Serial.print(sensor1->roll); //debug
+          Serial.print(" ");
+          Serial.print(sensor1->pitch);
+          Serial.print(" ");
+          Serial.println(sensor1->yaw);
+          return;
+          }
+   //if(abs(diff - previous) >  RANDOM_DIFF ){previous = previous*RANDOM_OVERLAP+(1-RANDOM_OVERLAP)*diff; Serial.println(previous);}
+   //else{Serial.println(diff); previous = diff;} //no averaging currently
+   if (diff < 89){diff = diff + 1.473;}
+   //else{diff = diff - 1.7431;}
+   
+   Serial.println(diff);
  }
  else{
   delayed_start++;
